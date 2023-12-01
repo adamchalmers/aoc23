@@ -1,12 +1,8 @@
-use rayon::iter::{ParallelBridge, ParallelIterator};
-
 fn main() {
     let input = include_str!("../input.txt");
-    // This can be trivially parallelized!
-    // Split up the parsing work on each thread.
-    let answer1: u32 = input.lines().par_bridge().map(parser_1).sum();
+    let answer1: u32 = input.lines().map(parser_1).sum();
     eprintln!("{answer1}");
-    let answer2: u32 = input.lines().par_bridge().map(parser_2).sum();
+    let answer2: u32 = input.lines().map(parser_2).sum();
     eprintln!("{answer2}");
 }
 
