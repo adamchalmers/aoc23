@@ -40,24 +40,12 @@ const NUMERALS: [(&str, u32); 20] = [
 ];
 
 fn parser_2(line: &str) -> u32 {
-    let mut numbers = Vec::new();
-    let mut curr = 0;
-    while curr < line.len() {
-        let mut found = false;
-        for (numeral, value) in NUMERALS.iter() {
-            if line[curr..].starts_with(numeral) {
-                numbers.push(value);
-                curr += 1;
-                found = true;
-                break;
-            }
-        }
-        if !found {
-            // no digit was found here, move on.
-            curr += 1;
-        }
-    }
-    let first = *numbers.first().unwrap();
-    let last = *numbers.last().unwrap();
-    (first * 10) + last
+    let mut digits = (0..line.len()).filter_map(|i| {
+        NUMERALS
+            .iter()
+            .find(|(numeral, _value)| line[i..].starts_with(numeral))
+            .map(|(_numeral, value)| value)
+    });
+    let first = digits.next().unwrap();
+    first * 10 + digits.last().unwrap_or(first)
 }
