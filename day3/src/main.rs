@@ -1,65 +1,72 @@
-use std::collections::HashMap;
-
 fn main() {
-    println!("Hello, world!");
     let diagram = Diagram::parse(include_str!("../input.txt"));
-    eprintln!("Q1: {}", diagram.q1());
-    eprintln!("Q2: {}", diagram.q2());
+    println!("Q1: {}", diagram.q1());
+    println!("Q2: {}", diagram.q2());
 }
 
 struct Diagram {
-    symbols: HashMap<Point, char>,
-    part_numbers: Vec<(Vec<Point>, usize)>,
+    symbols: Vec<Symbol>,
+    part_numbers: Vec<PartNumber>,
+}
+
+struct Symbol {
+    point: Point,
+    symbol: char,
+}
+
+struct PartNumber {
+    points: Vec<Point>,
+    value: u32,
 }
 
 impl Diagram {
     fn parse(input: &str) -> Self {
         let lines: Vec<_> = input.lines().collect();
 
-        // Find all the diagram's symbols.
-        let mut symbols = HashMap::new();
+        // Find all the diagram's symbols and the point they're located at.
+        let mut symbols = Vec::new();
         for (y, line) in lines.iter().enumerate() {
             for (x, char) in line.chars().enumerate() {
-                if char != '.' && !char.is_digit(10) {
-                    symbols.insert(Point { x, y }, char);
+                if char != '.' && !char.is_ascii_digit() {
+                    symbols.push(Symbol {
+                        point: Point { x, y },
+                        symbol: char,
+                    });
                 }
             }
         }
 
-        // Find all the numbers in the diagram, and their indices.
-        let mut digits: Vec<usize> = Vec::new();
-        let mut points_for_number = Vec::new();
-        let mut numbers: Vec<(Vec<_>, usize)> = Vec::new();
+        // Find all the numbers in the diagram, and the points they span across.
+        let mut digits: Vec<u32> = Vec::new(); // Each digit in the number.
+        let mut points_for_number = Vec::new(); // Each point the number spans.
+        let mut part_numbers = Vec::new();
         for (y, line) in lines.iter().enumerate() {
             for (x, char) in line.chars().enumerate() {
                 if let Some(d) = char.to_digit(10) {
-                    digits.push(d as usize);
+                    digits.push(d);
                     points_for_number.push(Point { x, y });
-                } else {
-                    if !digits.is_empty() {
-                        let mut sum = 0usize;
-                        for (i, d) in digits.drain(0..).rev().enumerate() {
-                            sum += d * 10usize.pow(i as u32) as usize;
-                        }
-                        numbers.push((points_for_number.drain(0..).collect(), sum));
+                } else if !digits.is_empty() {
+                    // The number is finished, check if it's a part number.
+                    let points = std::mem::take(&mut points_for_number);
+                    let mut digits = std::mem::take(&mut digits);
+
+                    // A number is a part number if it's adjacent to a symbol.
+                    if points
+                        .iter()
+                        .any(|p| symbols.iter().any(|symbol| symbol.point.is_adjacent(*p)))
+                    {
+                        // Calculate the actual number by aggregating the digits.
+                        let value = digits
+                            .drain(0..)
+                            .rev()
+                            .enumerate()
+                            .map(|(i, d)| d * 10u32.pow(u32::try_from(i).unwrap()))
+                            .sum();
+                        part_numbers.push(PartNumber { points, value });
                     }
                 }
             }
         }
-
-        let part_numbers = numbers
-            .into_iter()
-            .filter(|(points, _number)| {
-                points.iter().any(|p0| {
-                    for p1 in symbols.keys() {
-                        if p0.is_adjacent(*p1) {
-                            return true;
-                        }
-                    }
-                    false
-                })
-            })
-            .collect();
 
         Diagram {
             symbols,
@@ -67,42 +74,48 @@ impl Diagram {
         }
     }
 
-    fn q1(&self) -> usize {
+    // What is the sum of all of the part numbers in the engine schematic?
+    fn q1(&self) -> u32 {
         self.part_numbers
             .iter()
-            .map(|(_points, number)| number)
+            .map(|part_num| part_num.value)
             .sum()
     }
 
-    fn q2(&self) -> usize {
-        let mut answer = 0;
-        for (p, symbol) in &self.symbols {
-            if symbol != &'*' {
-                continue;
-            }
-            let adjacent_to_this_gear: Vec<_> = self
-                .part_numbers
-                .iter()
-                .filter_map(|(points, value)| {
-                    // Is the number adjacent?
-                    if points.iter().any(|p0| p0.is_adjacent(*p)) {
-                        Some(*value)
-                    } else {
-                        None
-                    }
-                })
-                .collect();
+    // What is the sum of all of the gear ratios in your engine schematic?
+    fn q2(&self) -> u32 {
+        self.symbols
+            .iter()
+            .map(|Symbol { point, symbol }| {
+                if symbol != &'*' {
+                    return 0;
+                }
+                let adjacent_to_this_gear: Vec<_> = self
+                    .part_numbers
+                    .iter()
+                    .filter_map(|PartNumber { points, value }| {
+                        // Is the number adjacent?
+                        if points.iter().any(|p0| p0.is_adjacent(*point)) {
+                            Some(*value)
+                        } else {
+                            None
+                        }
+                    })
+                    .collect();
 
-            let res: Result<[usize; 2], _> = adjacent_to_this_gear.try_into();
-            if let Ok([x, y]) = res {
-                answer += x * y;
-            }
-        }
-        answer
+                // A gear is any * symbol that is adjacent to exactly two part numbers.
+                if adjacent_to_this_gear.len() != 2 {
+                    return 0;
+                }
+
+                // Its gear ratio is the result of multiplying those two numbers together.
+                adjacent_to_this_gear.into_iter().product()
+            })
+            .sum()
     }
 }
 
-#[derive(Clone, Copy, Eq, PartialEq, Hash)]
+#[derive(Clone, Copy)]
 struct Point {
     x: usize,
     y: usize,
@@ -110,8 +123,7 @@ struct Point {
 
 impl Point {
     fn is_adjacent(self, other: Self) -> bool {
-        ((self.x as isize) - (other.x as isize)).abs() <= 1
-            && ((self.y as isize) - (other.y as isize)).abs() <= 1
+        self.x.abs_diff(other.x) <= 1 && self.y.abs_diff(other.y) <= 1
     }
 }
 
@@ -126,15 +138,8 @@ mod tests {
     use super::*;
 
     #[test]
-    fn test_name() {
+    fn test_example() {
         let d = Diagram::parse(include_str!("../example.txt"));
-        for (point, symbol) in &d.symbols {
-            eprintln!("{point:?}: {symbol}");
-        }
-        for (point, number) in &d.part_numbers {
-            eprintln!("{number}");
-            eprintln!("{point:?}");
-        }
         assert_eq!(d.q1(), 4361);
         assert_eq!(d.q2(), 467835);
     }
