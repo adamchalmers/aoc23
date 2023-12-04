@@ -1,4 +1,4 @@
-use std::collections::{HashMap, HashSet};
+use rustc_hash::FxHashSet as HashSet;
 
 /// A card is just a set of winning numbers.
 type Card = Vec<usize>;
@@ -40,17 +40,17 @@ fn q2(cards: &[Card]) -> usize {
 
     // Map card IDs to how many copies there are.
     // Starts with 1 copy of each card.
-    let mut copies: HashMap<usize, usize> = (0..n).map(|id| (id, 1)).collect();
+    let mut copies: Vec<_> = vec![1; n];
     for card_id in 0..n {
         let number_cards_won = cards[card_id].len();
         for i in 0..number_cards_won {
-            // You won a copy of this card ID.
+            // You won some copies of this card ID.
             let id = i + card_id + 1;
-            // You won 1 copy of it for each copy of the current card.
-            let copies_of_this_card = copies[&card_id];
-            *copies.get_mut(&id).unwrap() += copies_of_this_card;
+            // How many copies? 1 for each copy of the current card.
+            let copies_of_this_card = copies[card_id];
+            *copies.get_mut(id).unwrap() += copies_of_this_card;
         }
     }
 
-    copies.values().sum()
+    copies.into_iter().sum()
 }
