@@ -3,13 +3,13 @@
 #include <string>
 #include <vector>
 
-int numFromDigits(std::vector<int> digits) {
-    auto firstDigit = digits[0];
-    auto secondDigit = digits[digits.size()-1];
+int numFromDigits(const std::vector<int> *const digits) {
+    int firstDigit = digits->at(0);
+    auto secondDigit = digits->at(digits->size()-1);
     return firstDigit * 10 + secondDigit;
 }
 
-int parser1(std::string line) {
+int parser1(const std::string line) {
     std::vector<int> digits = {};
     for (auto curr : line) { 
         if (curr >= '0' && curr <= '9') {
@@ -17,10 +17,10 @@ int parser1(std::string line) {
         }
     } 
     
-    return numFromDigits(digits);
+    return numFromDigits(&digits);
 }
 
-int parser2(std::string line) {
+int parser2(const std::string *line) {
     std::vector<std::tuple<std::string, int>> numerals = {
         {"zero", 0},
         {"one", 1},
@@ -45,8 +45,9 @@ int parser2(std::string line) {
     };
 
     std::vector<int> digits = {};
-    for (auto i = 0; i < line.length(); i++) { 
-        auto slice = line.substr(i, line.size()-1);
+    // Use unsigned long because that's the type returned by length().
+    for (unsigned long i = 0; i < line->length(); i++) { 
+        auto slice = line->substr(i, line->size()-1);
 
         for (auto numeral : numerals) {
             auto spelling = std::get<0>(numeral);
@@ -58,7 +59,7 @@ int parser2(std::string line) {
         }
     } 
     
-    return numFromDigits(digits);
+    return numFromDigits(&digits);
 }
 
 int main() {
@@ -69,7 +70,7 @@ int main() {
     while (std::getline(file, str))
     {
         sumQ1 += parser1(str);
-        sumQ2 += parser2(str);
+        sumQ2 += parser2(&str);
     }
     std::cout << "Q1: " << sumQ1 << std::endl;
     std::cout << "Q2: " << sumQ2 << std::endl;
