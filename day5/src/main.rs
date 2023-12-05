@@ -1,18 +1,38 @@
+use rayon::prelude::*;
+
+type Id = usize;
+
 fn main() {
     let input = Input::parse(include_str!("../input.txt"));
     // Q1
-    let mut seeds = input.seeds.clone();
+    let seeds = input.seeds.clone();
+    println!("Q1: {}", lowest_location(seeds, &input));
+
+    // Q2
+    let seeds: Vec<_> = input
+        .seed_ranges()
+        .into_par_iter()
+        .flat_map(|(start, len)| {
+            vec![0; len]
+                .into_iter()
+                .enumerate()
+                .map(|(i, _)| i + start)
+                .collect::<Vec<_>>()
+        })
+        .collect();
+    println!("Brute-force checking each of {} seeds", seeds.len());
+    println!("Q2: {}", lowest_location(seeds, &input));
+}
+
+fn lowest_location(mut seeds: Vec<Id>, input: &Input) -> Id {
     for map_id in 0..7 {
         seeds = seeds
             .iter()
             .map(|seed| input.maps[map_id].do_map(*seed))
             .collect();
     }
-    let lowest = seeds.iter().min().unwrap();
-    println!("Q1: {lowest}");
+    *seeds.iter().min().unwrap()
 }
-
-type Id = u64;
 
 #[derive(Debug)]
 struct Input {
@@ -21,6 +41,12 @@ struct Input {
 }
 
 impl Input {
+    fn seed_ranges(&self) -> Vec<(Id, Id)> {
+        (0..self.seeds.len() / 2)
+            .map(|i| (self.seeds[2 * i], self.seeds[2 * i + 1]))
+            .collect()
+    }
+
     fn parse(s: &str) -> Self {
         let mut lines = s.lines();
         let seeds: Vec<_> = lines
