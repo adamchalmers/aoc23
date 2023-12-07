@@ -3,6 +3,7 @@ use std::{cmp::Ordering, collections::HashMap};
 fn main() {
     let data = parse(include_str!("../input.txt"));
     println!("Q1: {}", q1(&data));
+    println!("Q2: {}", q2(&data));
 }
 
 #[derive(Debug, Clone)]
@@ -15,7 +16,7 @@ struct Row {
 struct Hand([char; 5]);
 
 const CARD_VALUES: [char; 13] = [
-    'A', 'K', 'Q', 'J', 'T', '9', '8', '7', '6', '5', '4', '3', '2',
+    'A', 'K', 'Q', 'T', '9', '8', '7', '6', '5', '4', '3', '2', 'J',
 ];
 
 fn is_better(this: char, other: char) -> bool {
@@ -25,10 +26,37 @@ fn is_better(this: char, other: char) -> bool {
 }
 
 impl Hand {
-    fn classify(&self) -> HandType {
+    fn classify_q2(&self) -> HandType {
         let mut freqs = HashMap::new();
+        let mut jokers = 0;
         for ch in self.0 {
-            *freqs.entry(ch).or_insert(0) += 1;
+            if ch == 'J' {
+                jokers += 1
+            } else {
+                *freqs.entry(ch).or_insert(0) += 1;
+            }
+        }
+        if jokers == 5 {
+            return HandType::FiveOfAKind;
+        }
+        if jokers > 0 {
+            // If there's already a card with multiples, convert the jokers to that card.
+            let (most_freq_character, frequency) = freqs
+                .iter()
+                .max_by(|this, other| this.1.cmp(other.1))
+                .unwrap()
+                .to_owned();
+            if frequency > &1 {
+                freqs.insert(*most_freq_character, frequency + jokers);
+            } else {
+                // Make the joker the highest-value card I guess
+                for ch in CARD_VALUES {
+                    if let Some(x) = freqs.get(&ch) {
+                        freqs.insert(ch, x + jokers);
+                        break;
+                    }
+                }
+            }
         }
         let mut vals: Vec<usize> = freqs.values().copied().collect();
         vals.sort();
@@ -119,7 +147,7 @@ fn parse(s: &str) -> Data {
     Data { rows }
 }
 
-fn q1(data: &Data) -> usize {
+fn total_scores(data: &Data) -> usize {
     let mut rows = data.rows.to_vec();
     rows.sort_by(|this, other| this.hand.cmp(&other.hand).reverse());
     let mut prod = 0;
@@ -140,7 +168,7 @@ mod tests {
         let example = include_str!("../example.txt");
         let data = parse(example);
         let actual = q1(&data);
-        let expected = 6440;
+        let expected = 5905;
         assert_eq!(actual, expected);
     }
 
@@ -173,6 +201,26 @@ mod tests {
             Hand(['2', '3', '4', '5', '6']).classify(),
             HandType::HighCard
         );
+        assert_eq!(
+            Hand(['3', '2', 'T', '3', 'K']).classify(),
+            HandType::OnePair
+        );
+        assert_eq!(
+            Hand(['K', 'K', '6', '7', '7']).classify(),
+            HandType::TwoPair
+        );
+        assert_eq!(
+            Hand(['T', '5', '5', 'J', '5']).classify(),
+            HandType::FourOfAKind
+        );
+        assert_eq!(
+            Hand(['Q', 'Q', 'Q', 'J', 'A']).classify(),
+            HandType::FourOfAKind
+        );
+        assert_eq!(
+            Hand(['K', 'T', 'J', 'J', 'T']).classify(),
+            HandType::FourOfAKind
+        );
     }
 
     #[test]
@@ -185,12 +233,3 @@ mod tests {
         assert!(h1 > h2);
     }
 }
-
-// Now, you can determine the total winnings of this set of hands by adding up the result of multiplying each hand's bid with its rank (
-// 765 * 1 +
-// 220 * 2 +
-// 28 * 3 +
-// 684 * 4 +
-// 483 * 5
-
-// ). So the total winnings in this example are 6440.
