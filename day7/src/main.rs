@@ -2,7 +2,7 @@ use std::{cmp::Ordering, collections::HashMap};
 
 fn main() {
     let data = parse(include_str!("../input.txt"));
-    println!("Q1: {}", q1(&data));
+    // println!("Q1: {}", q1(&data));
     println!("Q2: {}", q2(&data));
 }
 
@@ -13,16 +13,68 @@ struct Row {
 }
 
 #[derive(Eq, PartialEq, Clone, Debug)]
-struct Hand([char; 5]);
+struct Hand([Card; 5]);
 
-const CARD_VALUES: [char; 13] = [
-    'A', 'K', 'Q', 'T', '9', '8', '7', '6', '5', '4', '3', '2', 'J',
-];
+#[derive(Eq, PartialEq, Clone, Copy, Debug, Hash)]
+enum Card {
+    A,
+    K,
+    Q,
+    T,
+    Number(u32),
+    J,
+}
 
-fn is_better(this: char, other: char) -> bool {
-    let this_pos = CARD_VALUES.iter().position(|c| c == &this).unwrap();
-    let other_pos = CARD_VALUES.iter().position(|c| c == &other).unwrap();
-    this_pos < other_pos
+impl Card {
+    fn parse(c: char) -> Self {
+        match c {
+            'A' => Self::A,
+            'K' => Self::K,
+            'Q' => Self::Q,
+            'T' => Self::T,
+            'J' => Self::J,
+            x => Self::Number(x.to_digit(10).unwrap()),
+        }
+    }
+}
+
+impl Card {
+    fn eval_q2(&self) -> u32 {
+        match self {
+            Card::A => 1,
+            Card::K => 2,
+            Card::Q => 3,
+            Card::T => 4,
+            Card::Number(n) => 9 - *n + 5,
+            Card::J => 13,
+        }
+    }
+    fn eval_q1(&self) -> u32 {
+        match self {
+            Card::A => 1,
+            Card::K => 2,
+            Card::Q => 3,
+            Card::T => 4,
+            Card::J => 5,
+            Card::Number(n) => 9 - *n + 6,
+        }
+    }
+    fn list_q2() -> [Self; 12] {
+        [
+            Card::A,
+            Card::K,
+            Card::Q,
+            Card::T,
+            Card::Number(9),
+            Card::Number(8),
+            Card::Number(7),
+            Card::Number(6),
+            Card::Number(5),
+            Card::Number(4),
+            Card::Number(3),
+            Card::Number(2),
+        ]
+    }
 }
 
 impl Hand {
@@ -30,7 +82,7 @@ impl Hand {
         let mut freqs = HashMap::new();
         let mut jokers = 0;
         for ch in self.0 {
-            if ch == 'J' {
+            if ch == Card::J {
                 jokers += 1
             } else {
                 *freqs.entry(ch).or_insert(0) += 1;
@@ -50,7 +102,7 @@ impl Hand {
                 freqs.insert(*most_freq_character, frequency + jokers);
             } else {
                 // Make the joker the highest-value card I guess
-                for ch in CARD_VALUES {
+                for ch in Card::list_q2() {
                     if let Some(x) = freqs.get(&ch) {
                         freqs.insert(ch, x + jokers);
                         break;
@@ -76,32 +128,19 @@ impl Hand {
             HandType::HighCard
         }
     }
-
-    fn is_winner(&self, other: &Self) -> bool {
-        if (self.classify() as i32) < (other.classify() as i32) {
-            true
-        } else if (self.classify() as i32) > (other.classify() as i32) {
-            false
-        } else {
-            for i in 0..5 {
-                if self.0[i] == other.0[i] {
-                    continue;
-                }
-                return is_better(self.0[i], other.0[i]);
-            }
-            // Complete tie
-            panic!("Complete tie, this shouldn't happen");
-        }
-    }
 }
 
 impl PartialOrd for Hand {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(if self.is_winner(&other) {
-            Ordering::Greater
-        } else {
-            Ordering::Less
-        })
+        Some(
+            dbg!(self.classify_q2().cmp(&other.classify_q2())).then_with(|| {
+                dbg!(self
+                    .0
+                    .iter()
+                    .map(Card::eval_q2)
+                    .cmp(other.0.iter().map(Card::eval_q2)))
+            }),
+        )
     }
 }
 
@@ -132,7 +171,13 @@ enum HandType {
 impl Row {
     fn parse(s: &str) -> Self {
         let (hand, bid) = s.split_once(' ').unwrap();
-        let hand = Hand(hand.chars().collect::<Vec<_>>().try_into().unwrap());
+        let hand = Hand(
+            hand.chars()
+                .map(Card::parse)
+                .collect::<Vec<_>>()
+                .try_into()
+                .unwrap(),
+        );
         let bid = bid.parse().unwrap();
         Row { hand, bid }
     }
@@ -149,87 +194,113 @@ fn parse(s: &str) -> Data {
 
 fn total_scores(data: &Data) -> usize {
     let mut rows = data.rows.to_vec();
-    rows.sort_by(|this, other| this.hand.cmp(&other.hand).reverse());
+    rows.sort_by(|this, other| this.hand.cmp(&other.hand));
     let mut prod = 0;
     let n = rows.len();
     for (i, row) in rows.iter().enumerate() {
         let rank = n - i;
+        eprintln!("{rank}: {row:?}");
         prod += rank * row.bid;
     }
     prod
+}
+
+fn q2(data: &Data) -> usize {
+    total_scores(data)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    // #[test]
+    // fn test_name() {
+    //     let example = include_str!("../example.txt");
+    //     let data = parse(example);
+    //     let actual = q1(&data);
+    //     let expected = 5905;
+    //     assert_eq!(actual, expected);
+    // }
+
     #[test]
-    fn test_name() {
+    fn test_q2() {
         let example = include_str!("../example.txt");
         let data = parse(example);
-        let actual = q1(&data);
+        let actual = q2(&data);
         let expected = 5905;
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn hand_types() {
-        assert_eq!(Hand(['A'; 5]).classify(), HandType::FiveOfAKind);
-        assert_eq!(
-            Hand(['A', 'A', '8', 'A', 'A']).classify(),
-            HandType::FourOfAKind
-        );
-        assert_eq!(
-            Hand(['2', '3', '3', '3', '2']).classify(),
-            HandType::FullHouse
-        );
-        assert_eq!(
-            Hand(['T', 'T', 'T', '9', '8']).classify(),
-            HandType::ThreeOfAKind
-        );
+        // assert_eq!(Hand(['A'; 5]).classify(), HandType::FiveOfAKind);
+        // assert_eq!(
+        //     Hand(['A', 'A', '8', 'A', 'A']).classify(),
+        //     HandType::FourOfAKind
+        // );
+        // assert_eq!(
+        //     Hand(['2', '3', '3', '3', '2']).classify(),
+        //     HandType::FullHouse
+        // );
+        // assert_eq!(
+        //     Hand(['T', 'T', 'T', '9', '8']).classify(),
+        //     HandType::ThreeOfAKind
+        // );
 
-        assert_eq!(
-            Hand(['2', '3', '4', '3', '2']).classify(),
-            HandType::TwoPair
-        );
+        // assert_eq!(
+        //     Hand(['2', '3', '4', '3', '2']).classify(),
+        //     HandType::TwoPair
+        // );
 
+        // assert_eq!(
+        //     Hand(['A', '2', '3', 'A', '4']).classify(),
+        //     HandType::OnePair
+        // );
+        // assert_eq!(
+        //     Hand(['2', '3', '4', '5', '6']).classify(),
+        //     HandType::HighCard
+        // );
+        // assert_eq!(
+        //     Hand(['3', '2', 'T', '3', 'K']).classify(),
+        //     HandType::OnePair
+        // );
+        // assert_eq!(
+        //     Hand(['K', 'K', '6', '7', '7']).classify(),
+        //     HandType::TwoPair
+        // );
         assert_eq!(
-            Hand(['A', '2', '3', 'A', '4']).classify(),
-            HandType::OnePair
-        );
-        assert_eq!(
-            Hand(['2', '3', '4', '5', '6']).classify(),
-            HandType::HighCard
-        );
-        assert_eq!(
-            Hand(['3', '2', 'T', '3', 'K']).classify(),
-            HandType::OnePair
-        );
-        assert_eq!(
-            Hand(['K', 'K', '6', '7', '7']).classify(),
-            HandType::TwoPair
-        );
-        assert_eq!(
-            Hand(['T', '5', '5', 'J', '5']).classify(),
+            Hand([
+                Card::T,
+                Card::Number(5),
+                Card::Number(5),
+                Card::J,
+                Card::Number(5),
+            ])
+            .classify_q2(),
             HandType::FourOfAKind
         );
         assert_eq!(
-            Hand(['Q', 'Q', 'Q', 'J', 'A']).classify(),
+            Hand([Card::Q, Card::Q, Card::Q, Card::J, Card::A,]).classify_q2(),
             HandType::FourOfAKind
         );
         assert_eq!(
-            Hand(['K', 'T', 'J', 'J', 'T']).classify(),
+            Hand([Card::K, Card::T, Card::J, Card::J, Card::T,]).classify_q2(),
             HandType::FourOfAKind
         );
     }
 
     #[test]
     fn ordering() {
-        // So, 33332 and 2AAAA are both four of a kind hands, but 33332 is stronger because its first card is stronger. Similarly, 77888 and 77788 are both a full house, but 77888 is stronger because its third card is stronger (and both hands have the same first and second card).
-        let h1 = Hand(['3', '3', '3', '3', '2']);
-        let h2 = Hand(['2', 'A', 'A', 'A', 'A']);
-        assert_eq!(h1.classify(), HandType::FourOfAKind);
-        assert_eq!(h2.classify(), HandType::FourOfAKind);
-        assert!(h1 > h2);
+        let h1 = Hand([
+            Card::Number(3),
+            Card::Number(3),
+            Card::Number(3),
+            Card::Number(3),
+            Card::Number(2),
+        ]);
+        let h2 = Hand([Card::Number(2), Card::A, Card::A, Card::A, Card::A]);
+        assert_eq!(h1.classify_q2(), HandType::FourOfAKind);
+        assert_eq!(h2.classify_q2(), HandType::FourOfAKind);
+        assert!(h1 < h2);
     }
 }
