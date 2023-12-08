@@ -1,7 +1,9 @@
 use std::{cmp::Ordering, collections::HashMap};
 
+mod parse;
+
 fn main() {
-    let data = parse(include_str!("../input.txt"));
+    let data = Data::parse(include_str!("../input.txt"));
     let q1 = total_scores(&data, Q::Q1);
     assert_eq!(250957639, q1);
     println!("Q1: {q1}");
@@ -30,16 +32,6 @@ enum Card {
 }
 
 impl Card {
-    fn parse(c: char) -> Self {
-        match c {
-            'A' => Self::A,
-            'K' => Self::K,
-            'Q' => Self::Q,
-            'T' => Self::T,
-            'J' => Self::J,
-            x => Self::Number(x.to_digit(10).unwrap()),
-        }
-    }
     fn eval_q2(&self) -> u32 {
         match self {
             Card::A => 1,
@@ -78,22 +70,34 @@ impl Card {
     }
 }
 
+#[derive(Debug, Eq, PartialEq, Ord, PartialOrd)]
+enum HandType {
+    /// Five of a kind, where all five cards have the same label: AAAAA
+    FiveOfAKind,
+    /// Four of a kind, where four cards have the same label and one card has a different label: AA8AA
+    FourOfAKind,
+    /// Full house, where three cards have the same label, and the remaining two cards share a different label: 23332
+    FullHouse,
+    /// Three of a kind, where three cards have the same label, and the remaining two cards are each different from any other card in the hand: TTT98
+    ThreeOfAKind,
+    /// Two pair, where two cards share one label, two other cards share a second label, and the remaining card has a third label: 23432
+    TwoPair,
+    /// One pair, where two cards share one label, and the other three cards have a different label from the pair and each other: A23A4
+    OnePair,
+    /// High card, where all cards' labels are distinct: 23456
+    HighCard,
+}
+
 impl HandType {
-    fn from_vals(vals: Vec<usize>) -> Self {
-        if vals == vec![5] {
-            HandType::FiveOfAKind
-        } else if vals == vec![1, 4] {
-            HandType::FourOfAKind
-        } else if vals == vec![2, 3] {
-            HandType::FullHouse
-        } else if vals.contains(&3) {
-            HandType::ThreeOfAKind
-        } else if vals == vec![1, 2, 2] {
-            HandType::TwoPair
-        } else if vals.contains(&2) {
-            HandType::OnePair
-        } else {
-            HandType::HighCard
+    fn from_card_frequencies(frequencies: Vec<usize>) -> Self {
+        match frequencies.as_slice() {
+            [5] => Self::FiveOfAKind,
+            [1, 4] => Self::FourOfAKind,
+            [2, 3] => Self::FullHouse,
+            vals if vals.contains(&3) => Self::ThreeOfAKind,
+            [1, 2, 2] => HandType::TwoPair,
+            vals if vals.contains(&2) => Self::OnePair,
+            _ => Self::HighCard,
         }
     }
 }
@@ -106,7 +110,7 @@ impl Hand {
         }
         let mut vals: Vec<_> = freqs.values().copied().collect();
         vals.sort();
-        HandType::from_vals(vals)
+        HandType::from_card_frequencies(vals)
     }
 
     fn classify_q2(&self) -> HandType {
@@ -143,7 +147,7 @@ impl Hand {
         }
         let mut vals: Vec<_> = freqs.values().copied().collect();
         vals.sort();
-        HandType::from_vals(vals)
+        HandType::from_card_frequencies(vals)
     }
 }
 
@@ -153,21 +157,29 @@ enum Q {
     Q2,
 }
 
-#[derive(Eq, PartialEq, Clone, Debug)]
-struct Ordered<'a> {
-    hand: &'a Hand,
+#[derive(Clone, Debug)]
+struct RowForQuestion<'a> {
+    row: &'a Row,
     question: Q,
 }
 
-impl<'a> Ordered<'a> {
+impl<'a> PartialEq for RowForQuestion<'a> {
+    fn eq(&self, other: &Self) -> bool {
+        self.row.hand == other.row.hand
+    }
+}
+impl<'a> Eq for RowForQuestion<'a> {}
+
+impl<'a> RowForQuestion<'a> {
     fn hand_type(&self) -> HandType {
         match self.question {
-            Q::Q1 => self.hand.classify_q1(),
-            Q::Q2 => self.hand.classify_q2(),
+            Q::Q1 => self.row.hand.classify_q1(),
+            Q::Q2 => self.row.hand.classify_q2(),
         }
     }
     fn card_values(&self) -> Vec<u32> {
-        self.hand
+        self.row
+            .hand
             .0
             .iter()
             .map(|card| match self.question {
@@ -181,13 +193,13 @@ impl<'a> Ordered<'a> {
 #[derive(Eq, PartialEq, Clone, Debug)]
 struct Q2<'a>(&'a Hand);
 
-impl<'a> PartialOrd for Ordered<'a> {
+impl<'a> PartialOrd for RowForQuestion<'a> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-impl<'a> Ord for Ordered<'a> {
+impl<'a> Ord for RowForQuestion<'a> {
     fn cmp(&self, other: &Self) -> Ordering {
         self.hand_type()
             .cmp(&other.hand_type())
@@ -195,71 +207,24 @@ impl<'a> Ord for Ordered<'a> {
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Ord, PartialOrd)]
-#[repr(u32)]
-enum HandType {
-    /// Five of a kind, where all five cards have the same label: AAAAA
-    FiveOfAKind,
-    /// Four of a kind, where four cards have the same label and one card has a different label: AA8AA
-    FourOfAKind,
-    /// Full house, where three cards have the same label, and the remaining two cards share a different label: 23332
-    FullHouse,
-    /// Three of a kind, where three cards have the same label, and the remaining two cards are each different from any other card in the hand: TTT98
-    ThreeOfAKind,
-    /// Two pair, where two cards share one label, two other cards share a second label, and the remaining card has a third label: 23432
-    TwoPair,
-    /// One pair, where two cards share one label, and the other three cards have a different label from the pair and each other: A23A4
-    OnePair,
-    /// High card, where all cards' labels are distinct: 23456
-    HighCard,
-}
-
-impl Row {
-    fn parse(s: &str) -> Self {
-        let (hand, bid) = s.split_once(' ').unwrap();
-        let hand = Hand(
-            hand.chars()
-                .map(Card::parse)
-                .collect::<Vec<_>>()
-                .try_into()
-                .unwrap(),
-        );
-        let bid = bid.parse().unwrap();
-        Row { hand, bid }
-    }
-}
-
 struct Data {
     rows: Vec<Row>,
 }
 
-fn parse(s: &str) -> Data {
-    let rows = s.lines().map(Row::parse).collect();
-    Data { rows }
-}
-
 fn total_scores(data: &Data, question: Q) -> usize {
+    // Sort all rows, highest-ranked hands first.
     let mut rows: Vec<_> = data
         .rows
         .iter()
-        .map(|row| {
-            (
-                row.bid,
-                Ordered {
-                    hand: &row.hand,
-                    question,
-                },
-            )
-        })
+        .map(|row| RowForQuestion { row, question })
         .collect();
-    rows.sort_by(|(_bid1, hand1), (_bid2, hand2)| hand1.cmp(hand2));
-    let mut prod = 0;
+    rows.sort();
+    // Calculate the total score by summing each row's bid * rank.
     let n = rows.len();
-    for (i, (bid, _hand)) in rows.iter().enumerate() {
-        let rank = n - i;
-        prod += rank * bid;
-    }
-    prod
+    rows.iter()
+        .enumerate()
+        .map(|(i, row)| (n - i) * row.row.bid)
+        .sum()
 }
 
 #[cfg(test)]
@@ -269,7 +234,7 @@ mod tests {
     #[test]
     fn test_q1() {
         let example = include_str!("../example.txt");
-        let data = parse(example);
+        let data = Data::parse(example);
         let actual = total_scores(&data, Q::Q1);
         let expected = 6440;
         assert_eq!(actual, expected);
@@ -278,7 +243,7 @@ mod tests {
     #[test]
     fn test_q2() {
         let example = include_str!("../example.txt");
-        let data = parse(example);
+        let data = Data::parse(example);
         let actual = total_scores(&data, Q::Q2);
         let expected = 5905;
         assert_eq!(actual, expected);
