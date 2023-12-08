@@ -2,8 +2,12 @@ use std::{cmp::Ordering, collections::HashMap};
 
 fn main() {
     let data = parse(include_str!("../input.txt"));
-    // println!("Q1: {}", q1(&data));
-    println!("Q2: {}", q2(&data));
+    let q1 = total_scores(&data, Q::Q1);
+    assert_eq!(250957639, q1);
+    println!("Q1: {q1}");
+    let q2 = total_scores(&data, Q::Q2);
+    assert_eq!(251515496, q2);
+    println!("Q2: {q2}");
 }
 
 #[derive(Debug, Clone)]
@@ -36,9 +40,6 @@ impl Card {
             x => Self::Number(x.to_digit(10).unwrap()),
         }
     }
-}
-
-impl Card {
     fn eval_q2(&self) -> u32 {
         match self {
             Card::A => 1,
@@ -54,8 +55,8 @@ impl Card {
             Card::A => 1,
             Card::K => 2,
             Card::Q => 3,
-            Card::T => 4,
-            Card::J => 5,
+            Card::J => 4,
+            Card::T => 5,
             Card::Number(n) => 9 - *n + 6,
         }
     }
@@ -77,7 +78,37 @@ impl Card {
     }
 }
 
+impl HandType {
+    fn from_vals(vals: Vec<usize>) -> Self {
+        if vals == vec![5] {
+            HandType::FiveOfAKind
+        } else if vals == vec![1, 4] {
+            HandType::FourOfAKind
+        } else if vals == vec![2, 3] {
+            HandType::FullHouse
+        } else if vals.contains(&3) {
+            HandType::ThreeOfAKind
+        } else if vals == vec![1, 2, 2] {
+            HandType::TwoPair
+        } else if vals.contains(&2) {
+            HandType::OnePair
+        } else {
+            HandType::HighCard
+        }
+    }
+}
+
 impl Hand {
+    fn classify_q1(&self) -> HandType {
+        let mut freqs = HashMap::new();
+        for ch in self.0 {
+            *freqs.entry(ch).or_insert(0) += 1;
+        }
+        let mut vals: Vec<_> = freqs.values().copied().collect();
+        vals.sort();
+        HandType::from_vals(vals)
+    }
+
     fn classify_q2(&self) -> HandType {
         let mut freqs = HashMap::new();
         let mut jokers = 0;
@@ -110,50 +141,65 @@ impl Hand {
                 }
             }
         }
-        let mut vals: Vec<usize> = freqs.values().copied().collect();
+        let mut vals: Vec<_> = freqs.values().copied().collect();
         vals.sort();
-        if vals == vec![5] {
-            HandType::FiveOfAKind
-        } else if vals == vec![1, 4] {
-            HandType::FourOfAKind
-        } else if vals == vec![2, 3] {
-            HandType::FullHouse
-        } else if vals.contains(&3) {
-            HandType::ThreeOfAKind
-        } else if vals == vec![1, 2, 2] {
-            HandType::TwoPair
-        } else if vals.contains(&2) {
-            HandType::OnePair
-        } else {
-            HandType::HighCard
+        HandType::from_vals(vals)
+    }
+}
+
+#[derive(Eq, PartialEq, Clone, Copy, Debug)]
+enum Q {
+    Q1,
+    Q2,
+}
+
+#[derive(Eq, PartialEq, Clone, Debug)]
+struct Ordered<'a> {
+    hand: &'a Hand,
+    question: Q,
+}
+
+impl<'a> Ordered<'a> {
+    fn hand_type(&self) -> HandType {
+        match self.question {
+            Q::Q1 => self.hand.classify_q1(),
+            Q::Q2 => self.hand.classify_q2(),
         }
     }
-}
-
-impl PartialOrd for Hand {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(
-            dbg!(self.classify_q2().cmp(&other.classify_q2())).then_with(|| {
-                dbg!(self
-                    .0
-                    .iter()
-                    .map(Card::eval_q2)
-                    .cmp(other.0.iter().map(Card::eval_q2)))
-            }),
-        )
+    fn card_values(&self) -> Vec<u32> {
+        self.hand
+            .0
+            .iter()
+            .map(|card| match self.question {
+                Q::Q1 => card.eval_q1(),
+                Q::Q2 => card.eval_q2(),
+            })
+            .collect()
     }
 }
 
-impl Ord for Hand {
+#[derive(Eq, PartialEq, Clone, Debug)]
+struct Q2<'a>(&'a Hand);
+
+impl<'a> PartialOrd for Ordered<'a> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl<'a> Ord for Ordered<'a> {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.partial_cmp(other).unwrap()
+        self.hand_type()
+            .cmp(&other.hand_type())
+            .then_with(|| self.card_values().cmp(&other.card_values()))
     }
 }
 
 #[derive(Debug, Eq, PartialEq, Ord, PartialOrd)]
+#[repr(u32)]
 enum HandType {
     /// Five of a kind, where all five cards have the same label: AAAAA
-    FiveOfAKind = 1,
+    FiveOfAKind,
     /// Four of a kind, where four cards have the same label and one card has a different label: AA8AA
     FourOfAKind,
     /// Full house, where three cards have the same label, and the remaining two cards share a different label: 23332
@@ -192,82 +238,77 @@ fn parse(s: &str) -> Data {
     Data { rows }
 }
 
-fn total_scores(data: &Data) -> usize {
-    let mut rows = data.rows.to_vec();
-    rows.sort_by(|this, other| this.hand.cmp(&other.hand));
+fn total_scores(data: &Data, question: Q) -> usize {
+    let mut rows: Vec<_> = data
+        .rows
+        .iter()
+        .map(|row| {
+            (
+                row.bid,
+                Ordered {
+                    hand: &row.hand,
+                    question,
+                },
+            )
+        })
+        .collect();
+    rows.sort_by(|(_bid1, hand1), (_bid2, hand2)| hand1.cmp(hand2));
     let mut prod = 0;
     let n = rows.len();
-    for (i, row) in rows.iter().enumerate() {
+    for (i, (bid, _hand)) in rows.iter().enumerate() {
         let rank = n - i;
-        eprintln!("{rank}: {row:?}");
-        prod += rank * row.bid;
+        prod += rank * bid;
     }
     prod
-}
-
-fn q2(data: &Data) -> usize {
-    total_scores(data)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    // #[test]
-    // fn test_name() {
-    //     let example = include_str!("../example.txt");
-    //     let data = parse(example);
-    //     let actual = q1(&data);
-    //     let expected = 5905;
-    //     assert_eq!(actual, expected);
-    // }
+    #[test]
+    fn test_q1() {
+        let example = include_str!("../example.txt");
+        let data = parse(example);
+        let actual = total_scores(&data, Q::Q1);
+        let expected = 6440;
+        assert_eq!(actual, expected);
+    }
 
     #[test]
     fn test_q2() {
         let example = include_str!("../example.txt");
         let data = parse(example);
-        let actual = q2(&data);
+        let actual = total_scores(&data, Q::Q2);
         let expected = 5905;
         assert_eq!(actual, expected);
     }
 
     #[test]
     fn hand_types() {
-        // assert_eq!(Hand(['A'; 5]).classify(), HandType::FiveOfAKind);
-        // assert_eq!(
-        //     Hand(['A', 'A', '8', 'A', 'A']).classify(),
-        //     HandType::FourOfAKind
-        // );
-        // assert_eq!(
-        //     Hand(['2', '3', '3', '3', '2']).classify(),
-        //     HandType::FullHouse
-        // );
-        // assert_eq!(
-        //     Hand(['T', 'T', 'T', '9', '8']).classify(),
-        //     HandType::ThreeOfAKind
-        // );
-
-        // assert_eq!(
-        //     Hand(['2', '3', '4', '3', '2']).classify(),
-        //     HandType::TwoPair
-        // );
-
-        // assert_eq!(
-        //     Hand(['A', '2', '3', 'A', '4']).classify(),
-        //     HandType::OnePair
-        // );
-        // assert_eq!(
-        //     Hand(['2', '3', '4', '5', '6']).classify(),
-        //     HandType::HighCard
-        // );
-        // assert_eq!(
-        //     Hand(['3', '2', 'T', '3', 'K']).classify(),
-        //     HandType::OnePair
-        // );
-        // assert_eq!(
-        //     Hand(['K', 'K', '6', '7', '7']).classify(),
-        //     HandType::TwoPair
-        // );
+        for (row, expected) in [
+            ("KK677", HandType::TwoPair),
+            ("AAAAA", HandType::FiveOfAKind),
+            ("AA8AA", HandType::FourOfAKind),
+            ("23332", HandType::FullHouse),
+            ("TTT98", HandType::ThreeOfAKind),
+            ("23432", HandType::TwoPair),
+            ("A23A4", HandType::OnePair),
+            ("23456", HandType::HighCard),
+            ("32T3K", HandType::OnePair),
+        ] {
+            assert_eq!(
+                Hand(
+                    row.chars()
+                        .map(Card::parse)
+                        .collect::<Vec<_>>()
+                        .try_into()
+                        .unwrap()
+                )
+                .classify_q1(),
+                expected,
+            );
+        }
         assert_eq!(
             Hand([
                 Card::T,
@@ -287,20 +328,5 @@ mod tests {
             Hand([Card::K, Card::T, Card::J, Card::J, Card::T,]).classify_q2(),
             HandType::FourOfAKind
         );
-    }
-
-    #[test]
-    fn ordering() {
-        let h1 = Hand([
-            Card::Number(3),
-            Card::Number(3),
-            Card::Number(3),
-            Card::Number(3),
-            Card::Number(2),
-        ]);
-        let h2 = Hand([Card::Number(2), Card::A, Card::A, Card::A, Card::A]);
-        assert_eq!(h1.classify_q2(), HandType::FourOfAKind);
-        assert_eq!(h2.classify_q2(), HandType::FourOfAKind);
-        assert!(h1 < h2);
     }
 }
