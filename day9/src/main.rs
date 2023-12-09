@@ -1,3 +1,5 @@
+#![feature(array_windows)]
+
 fn main() {
     let input = include_str!("../input.txt");
     let data = parse(input);
@@ -18,8 +20,8 @@ fn all_deltas(h: History) -> Vec<History> {
     let mut all_zeroes = false;
     while !all_zeroes {
         rows.push(next_row);
-        let curr = rows.last().unwrap();
-        next_row = (1..curr.len()).map(|i| curr[i] - curr[i - 1]).collect();
+        let curr_row = rows.last().unwrap();
+        next_row = curr_row.array_windows().map(|[x, y]| y - x).collect();
         all_zeroes = next_row.iter().all(|&x| x == 0);
     }
     rows
@@ -28,7 +30,7 @@ fn all_deltas(h: History) -> Vec<History> {
 fn extrapolate_next_step(h: &[History]) -> Value {
     h.iter()
         .rev()
-        .fold(0, |next, row| next + row.last().unwrap())
+        .fold(0, |next, row| row.last().unwrap() + next)
 }
 
 fn extrapolate_prev_step(h: &[History]) -> Value {
@@ -55,20 +57,21 @@ mod tests {
     fn test_name() {
         let data = parse(include_str!("../example.txt"));
         let all_ds: Vec<_> = data.into_iter().map(all_deltas).collect();
-        let expected_all_ds = vec![
-            vec![vec![0, 3, 6, 9, 12, 15], vec![3, 3, 3, 3, 3]],
+        let expected_all_ds =
             vec![
-                vec![1, 3, 6, 10, 15, 21],
-                vec![2, 3, 4, 5, 6],
-                vec![1, 1, 1, 1],
-            ],
-            vec![
-                vec![10, 13, 16, 21, 30, 45],
-                vec![3, 3, 5, 9, 15],
-                vec![0, 2, 4, 6],
-                vec![2, 2, 2],
-            ],
-        ];
+                vec![vec![0, 3, 6, 9, 12, 15], vec![3, 3, 3, 3, 3]],
+                vec![
+                    vec![1, 3, 6, 10, 15, 21],
+                    vec![2, 3, 4, 5, 6],
+                    vec![1, 1, 1, 1],
+                ],
+                vec![
+                    vec![10, 13, 16, 21, 30, 45],
+                    vec![3, 3, 5, 9, 15],
+                    vec![0, 2, 4, 6],
+                    vec![2, 2, 2],
+                ],
+            ];
         assert_eq!(all_ds, expected_all_ds);
         let all_extrapolateds: Vec<_> = all_ds
             .into_iter()
