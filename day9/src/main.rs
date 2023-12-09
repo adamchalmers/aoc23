@@ -2,11 +2,19 @@ fn main() {
     let input = include_str!("../input.txt");
     let data = parse(input);
     let q1: i32 = data
+        .clone()
         .into_iter()
         .map(all_deltas)
         .map(extrapolate_next_step)
         .sum();
     println!("Q1: {q1}");
+    let q2: i32 = data
+        .into_iter()
+        .map(all_deltas)
+        .map(extrapolate_prev_step)
+        .sum();
+    assert_eq!(q2, 1089);
+    println!("Q2: {q2}");
 }
 
 type Value = i32;
@@ -33,6 +41,16 @@ fn extrapolate_next_step(h: Vec<History>) -> Value {
         row -= 1;
     }
     h[row].last().unwrap() + next
+}
+
+fn extrapolate_prev_step(h: Vec<History>) -> Value {
+    let mut next = 0;
+    let mut row = h.len() - 1;
+    while row > 0 {
+        next = h[row].first().unwrap() - next;
+        row -= 1;
+    }
+    h[row].first().unwrap() - next
 }
 
 fn parse(s: &str) -> Vec<History> {
