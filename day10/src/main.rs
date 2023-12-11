@@ -1,31 +1,9 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 fn main() {
     let (grid, start) = Grid::parse(include_str!("../input.txt"), Tile::NorthSouth);
-    let a1 = q1(&grid, start);
+    let (a1, this_loop) = grid.loop_containing(start);
     println!("Q1: {a1}");
-}
-
-fn q1(g: &Grid, start: Point) -> u64 {
-    let mut dist = 0;
-    let mut frontier = vec![start];
-    // Map each seen node to its distance from the start.
-    let mut seen: HashMap<Point, u64> = HashMap::new();
-    while !frontier.is_empty() {
-        // Find each neighbour of the frontier, and mark the frontier's distance.
-        let mut next_frontier = Vec::new();
-        for frontier_node in frontier.drain(0..) {
-            seen.insert(frontier_node, dist);
-            for neighbour in g.neighbours_of(frontier_node) {
-                if !seen.contains_key(&neighbour) {
-                    next_frontier.push(neighbour);
-                }
-            }
-        }
-        frontier.extend(next_frontier);
-        dist += 1;
-    }
-    dist - 1
 }
 
 struct Grid(Vec<Vec<Tile>>);
@@ -45,6 +23,30 @@ impl Grid {
     fn at(&self, Point { x, y }: Point) -> Option<Tile> {
         let row = self.0.get(y)?;
         row.get(x).copied()
+    }
+
+    /// Find the set of points that are in the same loop, the loop which contains `start`.
+    /// Also return the maximum distance from `start` of any point in the loop.
+    fn loop_containing(&self, start: Point) -> (u64, HashMap<Point, Tile>) {
+        let mut dist = 0;
+        let mut frontier = vec![start];
+        // Map each seen node to its distance from the start.
+        let mut seen: HashMap<Point, Tile> = HashMap::new();
+        while !frontier.is_empty() {
+            // Find each neighbour of the frontier, and mark the frontier's distance.
+            let mut next_frontier = Vec::new();
+            for frontier_node in frontier.drain(0..) {
+                seen.insert(frontier_node, self.at(frontier_node).unwrap());
+                for neighbour in self.neighbours_of(frontier_node) {
+                    if !seen.contains_key(&neighbour) {
+                        next_frontier.push(neighbour);
+                    }
+                }
+            }
+            frontier.extend(next_frontier);
+            dist += 1;
+        }
+        (dist - 1, seen)
     }
 
     fn neighbours_of(&self, p: Point) -> Vec<Point> {
@@ -192,8 +194,9 @@ mod tests {
             (include_str!("../example2.txt"), Tile::SouthEast, 8),
         ] {
             let (grid, start) = Grid::parse(input, start_is);
-            let actual_q1 = q1(&grid, start);
+            let (actual_q1, this_loop) = grid.loop_containing(start);
             assert_eq!(actual_q1, expected_q1);
+            dbg!(this_loop);
         }
     }
 }
