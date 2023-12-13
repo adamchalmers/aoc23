@@ -1,9 +1,11 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
 
 fn main() {
     let (grid, start) = Grid::parse(include_str!("../input.txt"), Tile::NorthSouth);
     let (a1, this_loop) = grid.loop_containing(start);
     println!("Q1: {a1}");
+    let a2 = grid.q2(&this_loop);
+    println!("Q2: {a2}");
 }
 
 struct Grid(Vec<Vec<Tile>>);
@@ -49,6 +51,30 @@ impl Grid {
         (dist - 1, seen)
     }
 
+    fn q2(&self, this_loop: &HashMap<Point, Tile>) -> u64 {
+        let mut enclosed_points = 0;
+        for y in 0..self.0.len() {
+            let pipes_in_row: Vec<_> = this_loop
+                .iter()
+                .filter(|(p, _)| p.y == y)
+                .map(|(p, _)| p)
+                .collect();
+            let mut enclosed = false;
+            for x in 0..self.0[0].len() {
+                let p = Point { x, y };
+                let tile = self.at(p).unwrap();
+                if pipes_in_row.contains(&&p) {
+                    if matches!(tile, Tile::SouthEast | Tile::SouthWest | Tile::NorthSouth) {
+                        enclosed = !enclosed;
+                    }
+                } else if enclosed {
+                    enclosed_points += 1;
+                }
+            }
+        }
+        enclosed_points
+    }
+
     fn neighbours_of(&self, p: Point) -> Vec<Point> {
         let Some(tile) = self.at(p) else {
             return Vec::new();
@@ -64,12 +90,6 @@ impl Grid {
             Tile::Start => panic!("Start should have been replaced by now"),
         }
     }
-    // fn not_ground_at(&self, p: Point) -> bool {
-    //     self.at(p).map(|t| t.not_ground()).unwrap_or_default()
-    // }
-    // fn ground_at_neither(&self, p: Point, q: Point) -> bool {
-    //     self.not_ground_at(p) && self.not_ground_at(q)
-    // }
 }
 
 #[derive(Eq, PartialEq, Clone, Copy, Debug, Hash)]
@@ -103,30 +123,6 @@ impl Point {
             y: self.y + 1,
         }
     }
-    // fn northeast(&self) -> Self {
-    //     Self {
-    //         x: self.x + 1,
-    //         y: self.y - 1,
-    //     }
-    // }
-    // fn northwest(&self) -> Self {
-    //     Self {
-    //         x: self.x - 1,
-    //         y: self.y - 1,
-    //     }
-    // }
-    // fn southeast(&self) -> Self {
-    //     Self {
-    //         x: self.x + 1,
-    //         y: self.y + 1,
-    //     }
-    // }
-    // fn southwest(&self) -> Self {
-    //     Self {
-    //         x: self.x - 1,
-    //         y: self.y + 1,
-    //     }
-    // }
 }
 
 impl std::fmt::Display for Point {
@@ -196,7 +192,7 @@ mod tests {
             let (grid, start) = Grid::parse(input, start_is);
             let (actual_q1, this_loop) = grid.loop_containing(start);
             assert_eq!(actual_q1, expected_q1);
-            dbg!(this_loop);
+            grid.q2(&this_loop);
         }
     }
 }
