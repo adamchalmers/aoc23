@@ -1,4 +1,4 @@
-use std::collections::HashSet;
+use rustc_hash::FxHashSet as HashSet;
 
 fn main() {
     let input = include_str!("../input.txt");
@@ -24,7 +24,7 @@ impl Universe {
         total_distances
     }
     fn parse(s: &str, expansion_factor: usize) -> Self {
-        let mut galaxies_before_expansion = HashSet::new();
+        let mut galaxies_before_expansion = HashSet::default();
         let lines = s.lines().collect::<Vec<_>>();
         let mut width = 0;
         let height = lines.len();
@@ -38,16 +38,16 @@ impl Universe {
         }
         let expanding_rows: Vec<_> = (0..height)
             .filter(|y| {
-                let row_has_galaxy =
+                let has_galaxy =
                     (0..width).any(|x| galaxies_before_expansion.contains(&Point { x, y: *y }));
-                !row_has_galaxy
+                !has_galaxy
             })
             .collect();
         let expanding_cols: Vec<_> = (0..width)
             .filter(|x| {
-                let col_has_galaxy =
+                let has_galaxy =
                     (0..height).any(|y| galaxies_before_expansion.contains(&Point { x: *x, y }));
-                !col_has_galaxy
+                !has_galaxy
             })
             .collect();
         let galaxies = galaxies_before_expansion
