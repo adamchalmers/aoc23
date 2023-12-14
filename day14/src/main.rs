@@ -1,12 +1,19 @@
 fn main() {
     let input = include_str!("../input.txt");
-    let mut grid = Grid::parse(input);
-    grid.tilt_north();
-    let a1 = grid.total_load();
-    grid.print();
+    let grid = Grid::parse(input);
+    // Q1
+    let mut grid1 = grid.clone();
+    grid1.tilt_north();
+    let a1 = grid1.total_load();
     println!("Q1: {a1}");
+    // Q2
+    let mut grid2 = grid;
+    grid2.spin(1_000_000_000);
+    let a2 = grid2.total_load();
+    println!("Q2: {a2}");
 }
 
+#[derive(Clone)]
 struct Grid {
     tiles: Vec<Vec<Tile>>,
     width: usize,
@@ -41,17 +48,70 @@ impl Grid {
         self.tiles[p.y][p.x] = tile;
     }
 
-    /// Tilt column number `x` (0-indexed) to the north.
     fn tilt_column_north(&mut self, x: usize) {
         for y in 1..self.height {
             if self.at(Point { x, y }) == Tile::RoundRock {
                 let mut curr = Point { x, y };
                 for i in 1..=y {
-                    let above_curr = Point { x, y: y - i };
-                    if self.at(above_curr) == Tile::Empty {
-                        self.set(above_curr, Tile::RoundRock);
+                    let next = Point { x, y: y - i };
+                    if self.at(next) == Tile::Empty {
+                        self.set(next, Tile::RoundRock);
                         self.set(curr, Tile::Empty);
-                        curr = above_curr;
+                        curr = next;
+                    } else {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    fn tilt_column_south(&mut self, x: usize) {
+        for y in (0..self.height - 1).rev() {
+            if self.at(Point { x, y }) == Tile::RoundRock {
+                let mut curr = Point { x, y };
+                for i in 1..(self.height - y) {
+                    let next = Point { x, y: y + i };
+                    if self.at(next) == Tile::Empty {
+                        self.set(next, Tile::RoundRock);
+                        self.set(curr, Tile::Empty);
+                        curr = next;
+                    } else {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    fn tilt_column_west(&mut self, y: usize) {
+        for x in 1..self.width {
+            if self.at(Point { x, y }) == Tile::RoundRock {
+                let mut curr = Point { x, y };
+                for i in 1..=x {
+                    let next = Point { x: x - i, y };
+                    if self.at(next) == Tile::Empty {
+                        self.set(next, Tile::RoundRock);
+                        self.set(curr, Tile::Empty);
+                        curr = next;
+                    } else {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    fn tilt_column_east(&mut self, y: usize) {
+        for x in (0..self.width - 1).rev() {
+            if self.at(Point { x, y }) == Tile::RoundRock {
+                let mut curr = Point { x, y };
+                for i in 1..(self.width - x) {
+                    let next = Point { x: x + i, y };
+                    if self.at(next) == Tile::Empty {
+                        self.set(next, Tile::RoundRock);
+                        self.set(curr, Tile::Empty);
+                        curr = next;
                     } else {
                         break;
                     }
@@ -63,6 +123,29 @@ impl Grid {
     fn tilt_north(&mut self) {
         for x in 0..self.width {
             self.tilt_column_north(x);
+        }
+    }
+    fn tilt_south(&mut self) {
+        for x in 0..self.width {
+            self.tilt_column_south(x);
+        }
+    }
+    fn tilt_west(&mut self) {
+        for y in 0..self.height {
+            self.tilt_column_west(y);
+        }
+    }
+    fn tilt_east(&mut self) {
+        for y in 0..self.height {
+            self.tilt_column_east(y);
+        }
+    }
+    fn spin(&mut self, n: usize) {
+        for _ in 0..n {
+            self.tilt_north();
+            self.tilt_west();
+            self.tilt_south();
+            self.tilt_east();
         }
     }
 
@@ -167,5 +250,12 @@ mod tests {
         assert_eq!(grid.tiles, expected_after_tilt);
         let actual_load = grid.total_load();
         assert_eq!(actual_load, 136);
+    }
+    #[test]
+    fn test_q2() {
+        let input = include_str!("../example.txt");
+        let mut grid = Grid::parse(input);
+        grid.spin(2);
+        grid.print();
     }
 }
