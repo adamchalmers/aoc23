@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 fn main() {
     let input = include_str!("../input.txt");
     let grid = Grid::parse(input);
@@ -140,8 +142,28 @@ impl Grid {
             self.tilt_column_east(y);
         }
     }
+
+    /// Return where the pattern starts repeating, and what the period of repetition is.
+    fn calculate_period(mut self, n: usize) -> (usize, usize) {
+        let mut seen: HashMap<Vec<Vec<Tile>>, usize> = HashMap::default();
+        for i in 0..n {
+            if let Some(first) = seen.get(&self.tiles) {
+                let period = i - first;
+                return (*first, period);
+            }
+            seen.insert(self.tiles.clone(), i);
+            self.tilt_north();
+            self.tilt_west();
+            self.tilt_south();
+            self.tilt_east();
+        }
+        panic!("Never converges");
+    }
+
     fn spin(&mut self, n: usize) {
-        for _ in 0..n {
+        let (cycle_start, period) = dbg!(self.clone().calculate_period(n));
+        let number_of_cycles = cycle_start + ((n - cycle_start) % period);
+        for _ in 0..number_of_cycles {
             self.tilt_north();
             self.tilt_west();
             self.tilt_south();
@@ -170,7 +192,7 @@ impl Grid {
     }
 }
 
-#[derive(Eq, PartialEq, Clone, Copy, Debug)]
+#[derive(Eq, PartialEq, Clone, Copy, Debug, Hash)]
 pub enum Tile {
     Empty,
     RoundRock,
@@ -255,7 +277,8 @@ mod tests {
     fn test_q2() {
         let input = include_str!("../example.txt");
         let mut grid = Grid::parse(input);
-        grid.spin(2);
+        grid.spin(1_000_000_000);
         grid.print();
+        assert_eq!(grid.total_load(), 64);
     }
 }
