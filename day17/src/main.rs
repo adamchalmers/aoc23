@@ -3,8 +3,8 @@ use std::collections::HashMap;
 
 fn main() {
     let grid = Grid::parse(include_str!("../input.txt"));
-    println!("Q1: {}", grid.q1());
-    println!("Q2: {}", grid.q2());
+    println!("Q1: {}", grid.q(Node::is_final_q1, Node::neighbours_q1));
+    println!("Q2: {}", grid.q(Node::is_final_q2, Node::neighbours_q2));
 }
 
 #[derive(Debug)]
@@ -33,7 +33,16 @@ impl Grid {
         }
     }
 
-    fn q1(&self) -> u32 {
+    fn q<IsSolution, FindNeighbours>(
+        &self,
+        is_solution: IsSolution,
+        neighbours: FindNeighbours,
+    ) -> u32
+    where
+        IsSolution: Fn(&Node, usize, usize) -> bool,
+        FindNeighbours: Fn(&Node, usize, usize) -> Vec<Node>,
+    {
+        // Initialize the data structures.
         let mut solutions = HashMap::new();
         let mut visited: HashMap<Node, u32> = HashMap::new();
         let mut tentative = PriorityQueue::new();
@@ -53,11 +62,14 @@ impl Grid {
             },
             Priority { cost: 0 },
         );
-        // Get highest-priority item
+
+        // Start the main loop.
+        // Each iteration, get highest-priority item.
         while let Some((curr, priority)) = tentative.pop() {
             let cost = priority.cost;
+
             // Are we at the final node?
-            if curr.point.x == self.width - 1 && curr.point.y == self.height - 1 {
+            if is_solution(&curr, self.width, self.height) {
                 solutions.insert(curr, cost);
             }
             // You can enter the final node from above or from left.
@@ -65,13 +77,16 @@ impl Grid {
             if solutions.len() >= 2 {
                 return solutions.values().copied().min().unwrap();
             }
-            for neighbour in curr.neighbours_q1(self.width, self.height) {
+
+            // Check each neighbour of the current node.
+            for neighbour in neighbours(&curr, self.width, self.height) {
                 // Don't visit the same node twice.
                 if visited.contains_key(&neighbour) {
                     continue;
                 }
 
-                let cost_through_here = cost + self.at(neighbour.point);
+                // Update this neighbour's tentative cost, as the minimum cost to reach it.
+                let cost_through_here = cost + self.cost_at(neighbour.point);
                 let min_cost = if let Some(previous_cost) =
                     tentative.get_priority(&neighbour).map(|p| p.cost)
                 {
@@ -81,72 +96,19 @@ impl Grid {
                 };
                 tentative.push(neighbour, Priority { cost: min_cost });
             }
+
+            // Finished with this node.
             visited.insert(curr, cost);
         }
         panic!("Finished all tentative nodes but never found a terminal node")
     }
 
-    fn q2(&self) -> u32 {
-        let mut solutions = HashMap::new();
-        let mut visited: HashMap<Node, u32> = HashMap::new();
-        let mut tentative = PriorityQueue::new();
-        tentative.push(
-            Node {
-                point: Default::default(),
-                moves_in_straight_line: 0,
-                current_direction: Dir::Down,
-            },
-            Priority { cost: 0 },
-        );
-        tentative.push(
-            Node {
-                point: Default::default(),
-                moves_in_straight_line: 0,
-                current_direction: Dir::Right,
-            },
-            Priority { cost: 0 },
-        );
-        // Get highest-priority item
-        while let Some((curr, priority)) = tentative.pop() {
-            let cost = priority.cost;
-            // Are we at the final node?
-            if curr.moves_in_straight_line >= 4
-                && curr.point.x == self.width - 1
-                && curr.point.y == self.height - 1
-            {
-                solutions.insert(curr, cost);
-            }
-            // You can enter the final node from above or from left.
-            // Once we've checked both of them, exit.
-            if solutions.len() >= 2 {
-                return solutions.values().copied().min().unwrap();
-            }
-            for neighbour in curr.neighbours_q2(self.width, self.height) {
-                // Don't visit the same node twice.
-                if visited.contains_key(&neighbour) {
-                    continue;
-                }
-
-                let cost_through_here = cost + self.at(neighbour.point);
-                let min_cost = if let Some(previous_cost) =
-                    tentative.get_priority(&neighbour).map(|p| p.cost)
-                {
-                    cost_through_here.min(previous_cost)
-                } else {
-                    cost_through_here
-                };
-                tentative.push(neighbour, Priority { cost: min_cost });
-            }
-            visited.insert(curr, cost);
-        }
-        panic!("Finished all tentative nodes but never found a terminal node")
-    }
-
-    fn at(&self, Point { x, y }: Point) -> u32 {
+    fn cost_at(&self, Point { x, y }: Point) -> u32 {
         self.tiles[y][x]
     }
 }
 
+/// Priority is higher the lower the cost is.
 #[derive(PartialEq, Eq, Copy, Clone)]
 struct Priority {
     cost: u32,
@@ -182,6 +144,14 @@ impl std::fmt::Debug for Node {
 }
 
 impl Node {
+    fn is_final_q1(&self, width: usize, height: usize) -> bool {
+        self.point.x == width - 1 && self.point.y == height - 1
+    }
+
+    fn is_final_q2(&self, width: usize, height: usize) -> bool {
+        self.moves_in_straight_line >= 4 && self.is_final_q1(width, height)
+    }
+
     fn neighbours_q1(&self, width: usize, height: usize) -> Vec<Self> {
         const MAX_MOVES_IN_SAME_DIR: u8 = 3;
         [Dir::Up, Dir::Down, Dir::Left, Dir::Right]
@@ -212,6 +182,7 @@ impl Node {
             })
             .collect()
     }
+
     fn neighbours_q2(&self, width: usize, height: usize) -> Vec<Self> {
         const MAX_MOVES_IN_SAME_DIR: u8 = 10;
         const MIN_MOVES_BEFORE_TURNING: u8 = 4;
@@ -293,17 +264,6 @@ struct Point {
     y: usize,
 }
 
-impl std::ops::Add for Point {
-    type Output = Self;
-
-    fn add(self, rhs: Self) -> Self::Output {
-        Self {
-            x: self.x + rhs.x,
-            y: self.y + rhs.y,
-        }
-    }
-}
-
 impl std::fmt::Debug for Point {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "({},{})", self.x, self.y)
@@ -317,7 +277,7 @@ mod tests {
     #[test]
     fn test_q1_normal() {
         let g = Grid::parse(include_str!("../example.txt"));
-        let actual = g.q1();
+        let actual = g.q(Node::is_final_q1, Node::neighbours_q1);
         let expected = 102;
         assert_eq!(actual, expected);
     }
@@ -325,7 +285,7 @@ mod tests {
     #[test]
     fn test_reddit_example() {
         let g = Grid::parse(include_str!("../example_from_reddit.txt"));
-        let actual = g.q1();
+        let actual = g.q(Node::is_final_q1, Node::neighbours_q1);
         let expected = 17;
         assert_eq!(actual, expected);
     }
@@ -333,8 +293,16 @@ mod tests {
     #[test]
     fn test_q1_tiny() {
         let g = Grid::parse(include_str!("../tiny_example.txt"));
-        let actual = g.q1();
+        let actual = g.q(Node::is_final_q1, Node::neighbours_q1);
         let expected = 11;
+        assert_eq!(actual, expected);
+    }
+
+    #[test]
+    fn test_q2() {
+        let g = Grid::parse(include_str!("../input.txt"));
+        let actual = g.q(Node::is_final_q2, Node::neighbours_q2);
+        let expected = 1017;
         assert_eq!(actual, expected);
     }
 
