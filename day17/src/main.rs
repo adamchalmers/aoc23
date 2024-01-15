@@ -24,12 +24,10 @@ impl Grid {
                     .collect::<Vec<_>>()
             })
             .collect();
-        let height = tiles.len();
-        let width = tiles[0].len();
         Self {
+            width: tiles[0].len(),
+            height: tiles.len(),
             tiles,
-            width,
-            height,
         }
     }
 
@@ -160,10 +158,7 @@ impl Node {
                 let (next_dir, moves_in_straight_line) =
                     match (self.current_direction, next_direction) {
                         // Same direction
-                        (Dir::Up, Dir::Up)
-                        | (Dir::Down, Dir::Down)
-                        | (Dir::Left, Dir::Left)
-                        | (Dir::Right, Dir::Right) => {
+                        (dir0, dir1) if dir0 == dir1 => {
                             // Cannot go in the same direction forever.
                             if self.moves_in_straight_line >= MAX_MOVES_IN_SAME_DIR {
                                 return None;
@@ -192,10 +187,7 @@ impl Node {
                 let (next_dir, moves_in_straight_line) =
                     match (self.current_direction, next_direction) {
                         // Same direction
-                        (Dir::Up, Dir::Up)
-                        | (Dir::Down, Dir::Down)
-                        | (Dir::Left, Dir::Left)
-                        | (Dir::Right, Dir::Right) => {
+                        (dir0, dir1) if dir0 == dir1 => {
                             // Cannot go in the same direction forever.
                             if self.moves_in_straight_line >= MAX_MOVES_IN_SAME_DIR {
                                 return None;
@@ -227,6 +219,7 @@ impl Node {
         width: usize,
         height: usize,
     ) -> Option<Node> {
+        // Check that moving along the given direction is still within the bounds of the grid.
         match next_dir {
             Dir::Left if current.x > 0 => {
                 current.x -= 1;
