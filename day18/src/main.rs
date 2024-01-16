@@ -18,8 +18,8 @@ fn main() {
 
 struct Trench {
     edge: Vec<Point>,
-    width: u16,
-    height: u16,
+    width: u32,
+    height: u32,
 }
 
 #[derive(Default, Clone, Copy, Eq, PartialEq, Hash)]
@@ -34,7 +34,7 @@ impl std::fmt::Debug for Point {
     }
 }
 
-fn flood(start: Point, mut seen: HashSet<Point>, width: u16, height: u16) -> usize {
+fn flood(start: Point, mut seen: HashSet<Point>, width: u32, height: u32) -> usize {
     let mut discovered = HashSet::default();
     let mut fringe = vec![start];
 
@@ -86,8 +86,8 @@ impl Point {
     }
 
     /// Get all `n` points from `start` advancing one meter at a time in the given direction.
-    fn points_along(self, dir: Dir, n: u16) -> impl Iterator<Item = Point> {
-        (0..n).map(move |i| self.advance(dir, i.into()))
+    fn points_along(self, dir: Dir, n: u32) -> impl Iterator<Item = Point> {
+        (0..n).map(move |i| self.advance(dir, i.try_into().unwrap()))
     }
 }
 
@@ -113,8 +113,8 @@ impl Trench {
             .fold((edge[0].y, edge[0].y), |(min, max), p| {
                 (min.min(p.y), max.max(p.y))
             });
-        let height = (max_y - min_y + 1) as u16;
-        let width = (max_x - min_x + 1) as u16;
+        let height = (max_y - min_y + 1) as u32;
+        let width = (max_x - min_x + 1) as u32;
         let above = if min_y < 0 { -min_y } else { 0 };
         let left = if min_x < 0 { -min_x } else { 0 };
         for p in &mut edge {
@@ -150,9 +150,28 @@ impl Trench {
 
 struct InputRow {
     dir: Dir,
-    metres: u16,
-    #[allow(dead_code)] // Part 2 I assume
-    color: String,
+    metres: u32,
+    #[allow(dead_code)]
+    color: HexInstruction,
+}
+
+struct HexInstruction {
+    dir: Dir,
+    metres: u32,
+}
+
+impl HexInstruction {
+    fn parse(s: &str) -> Self {
+        let metres = u32::from_str_radix(&s[0..5], 16).unwrap();
+        let dir = match &s[5..] {
+            "0" => Dir::Right,
+            "1" => Dir::Down,
+            "2" => Dir::Left,
+            "3" => Dir::Up,
+            other => panic!("Invalid hexadecimal direction '{other}'"),
+        };
+        Self { dir, metres }
+    }
 }
 
 impl InputRow {
@@ -162,7 +181,7 @@ impl InputRow {
         Self {
             dir: Dir::parse(dir),
             metres: metres.parse().unwrap(),
-            color: color.to_owned(),
+            color: HexInstruction::parse(&color[2..8]),
         }
     }
 }
