@@ -1,20 +1,19 @@
-use std::collections::HashSet;
+use rustc_hash::FxHashSet as HashSet;
 
 fn main() {
     let input_file = include_str!("../input.txt");
     let input: Vec<InputRow> = input_file.lines().map(InputRow::parse).collect();
     let trench = Trench::dig_from(input);
     let trench_size = trench.edge.len();
-    trench.visualize();
     println!("initial trench size is {trench_size}");
     println!("it's {} by {}", trench.width, trench.height);
     let filled = flood(
-        Point { x: 1, y: 1 },
-        trench.edge.into_iter().collect(),
+        Point { x: 18, y: 27 },
+        trench.edge.iter().copied().collect(),
         trench.width,
         trench.height,
     );
-    println!("Total size once filled: {}", filled.len() + trench_size);
+    println!("Total size once filled: {}", filled + trench_size);
 }
 
 struct Trench {
@@ -35,8 +34,8 @@ impl std::fmt::Debug for Point {
     }
 }
 
-fn flood(start: Point, mut seen: HashSet<Point>, width: u16, height: u16) -> Vec<Point> {
-    let mut discovered = HashSet::new();
+fn flood(start: Point, mut seen: HashSet<Point>, width: u16, height: u16) -> usize {
+    let mut discovered = HashSet::default();
     let mut fringe = vec![start];
 
     // Generate a list of points adjacent to the given point,
@@ -60,7 +59,7 @@ fn flood(start: Point, mut seen: HashSet<Point>, width: u16, height: u16) -> Vec
         discovered.insert(curr);
     }
 
-    discovered.into_iter().collect()
+    discovered.len()
 }
 
 impl Point {
@@ -209,15 +208,6 @@ mod tests {
             trench.width,
             trench.height,
         );
-        let mut x = trench.edge;
-        x.extend(inside_trench);
-        let filled_trench = Trench {
-            edge: x,
-            width: trench.width,
-            height: trench.height,
-        };
-        filled_trench.visualize();
-        println!();
-        assert_eq!(filled_trench.edge.len(), 62);
+        assert_eq!(inside_trench, 62 - 38);
     }
 }
