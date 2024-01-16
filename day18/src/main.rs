@@ -1,4 +1,4 @@
-use rustc_hash::FxHashSet as HashSet;
+use rustc_hash::FxHashMap as HashMap;
 
 fn main() {
     let input_file = include_str!("../input.txt");
@@ -7,12 +7,7 @@ fn main() {
     let trench_size = trench.edge.len();
     println!("initial trench size is {trench_size}");
     println!("it's {} by {}", trench.width, trench.height);
-    let filled = flood(
-        Point { x: 18, y: 27 },
-        trench.edge.iter().copied().collect(),
-        trench.width,
-        trench.height,
-    );
+    let filled = trench.count_inside();
     println!("Total size once filled: {}", filled + trench_size);
 }
 
@@ -32,34 +27,6 @@ impl std::fmt::Debug for Point {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "({},{})", self.x, self.y)
     }
-}
-
-fn flood(start: Point, mut seen: HashSet<Point>, width: u32, height: u32) -> usize {
-    let mut discovered = HashSet::default();
-    let mut fringe = vec![start];
-
-    // Generate a list of points adjacent to the given point,
-    // if they're within the grid bounds.
-    let neighbours = |p: Point| {
-        let out = [
-            Point { x: p.x + 1, ..p },
-            Point { x: p.x - 1, ..p },
-            Point { y: p.y + 1, ..p },
-            Point { y: p.y - 1, ..p },
-        ];
-        out.into_iter()
-            .filter(|p| p.x >= 0 && p.x < width as i32 && p.y >= 0 && p.y < height as i32)
-    };
-
-    while let Some(curr) = fringe.pop() {
-        for neighbour in neighbours(curr).filter(|p| !seen.contains(p)) {
-            fringe.push(neighbour);
-        }
-        seen.insert(curr);
-        discovered.insert(curr);
-    }
-
-    discovered.len()
 }
 
 impl Point {
@@ -146,6 +113,38 @@ impl Trench {
             println!("{}", row.collect::<String>())
         }
     }
+
+    fn count_inside(self) -> usize {
+        let mut points_per_row =
+            self.edge
+                .into_iter()
+                .fold(HashMap::default(), |mut map, point| {
+                    map.entry(point.y).or_insert(Vec::new()).push(point.x);
+                    map
+                });
+        let mut inside = 0usize;
+        for xs in points_per_row.values_mut() {
+            xs.sort();
+            let mut previous_edge = None;
+            for x in xs {
+                match previous_edge {
+                    None => {
+                        previous_edge = Some(*x);
+                    }
+                    Some(prev_x) => {
+                        if *x - prev_x > 1 {
+                            inside += usize::try_from((*x - prev_x) - 1).unwrap();
+                            previous_edge = None;
+                        } else {
+                            // This is just continuing an edge.
+                            previous_edge = Some(*x);
+                        }
+                    }
+                }
+            }
+        }
+        inside
+    }
 }
 
 struct InputRow {
@@ -156,7 +155,9 @@ struct InputRow {
 }
 
 struct HexInstruction {
+    #[allow(dead_code)]
     dir: Dir,
+    #[allow(dead_code)]
     metres: u32,
 }
 
@@ -220,13 +221,7 @@ mod tests {
         assert_eq!(trench.width, 7, "width is wrong");
         assert_eq!(trench.height, 10, "height is wrong");
         assert_eq!(trench.edge.len(), 38);
-        let start = Point { x: 1, y: 1 };
-        let inside_trench = flood(
-            start,
-            trench.edge.iter().copied().collect(),
-            trench.width,
-            trench.height,
-        );
+        let inside_trench = trench.count_inside();
         assert_eq!(inside_trench, 62 - 38);
     }
 }
