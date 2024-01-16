@@ -2,13 +2,15 @@ use rustc_hash::FxHashMap as HashMap;
 
 fn main() {
     let input_file = include_str!("../input.txt");
-    let input: Vec<InputRow> = input_file.lines().map(InputRow::parse).collect();
+    let (input, input_hex): (Vec<_>, Vec<_>) = input_file.lines().map(Instruction::parse).unzip();
     let trench = Trench::dig_from(input);
     let trench_size = trench.edge.len();
     println!("initial trench size is {trench_size}");
     println!("it's {} by {}", trench.width, trench.height);
     let filled = trench.count_inside();
-    println!("Total size once filled: {}", filled + trench_size);
+    let q1 = filled + trench_size;
+    println!("Total size once filled: {}", q1);
+    assert_eq!(34329, q1)
 }
 
 struct Trench {
@@ -59,7 +61,7 @@ impl Point {
 }
 
 impl Trench {
-    fn dig_from(instructions: Vec<InputRow>) -> Self {
+    fn dig_from(instructions: Vec<Instruction>) -> Self {
         let (mut edge, _curr) = instructions.into_iter().fold(
             (Vec::new(), Point::default()),
             |(mut edge, mut curr), instr| {
@@ -147,22 +149,13 @@ impl Trench {
     }
 }
 
-struct InputRow {
+struct Instruction {
     dir: Dir,
-    metres: u32,
-    #[allow(dead_code)]
-    color: HexInstruction,
-}
-
-struct HexInstruction {
-    #[allow(dead_code)]
-    dir: Dir,
-    #[allow(dead_code)]
     metres: u32,
 }
 
-impl HexInstruction {
-    fn parse(s: &str) -> Self {
+impl Instruction {
+    fn parse_hex(s: &str) -> Self {
         let metres = u32::from_str_radix(&s[0..5], 16).unwrap();
         let dir = match &s[5..] {
             "0" => Dir::Right,
@@ -175,15 +168,18 @@ impl HexInstruction {
     }
 }
 
-impl InputRow {
-    fn parse(s: &str) -> Self {
+impl Instruction {
+    fn parse(s: &str) -> (Self, Self) {
         let parts = s.split(' ').collect::<Vec<_>>();
         let [dir, metres, color]: [&str; 3] = parts.try_into().unwrap();
-        Self {
-            dir: Dir::parse(dir),
-            metres: metres.parse().unwrap(),
-            color: HexInstruction::parse(&color[2..8]),
-        }
+
+        (
+            Self {
+                dir: Dir::parse(dir),
+                metres: metres.parse().unwrap(),
+            },
+            Self::parse_hex(&color[2..8]),
+        )
     }
 }
 
@@ -214,8 +210,8 @@ mod tests {
     #[test]
     fn test_q1() {
         let input_file = include_str!("../example.txt");
-        let input: Vec<InputRow> = input_file.lines().map(InputRow::parse).collect();
-        let trench = Trench::dig_from(input);
+        let input: (Vec<_>, Vec<_>) = input_file.lines().map(Instruction::parse).unzip();
+        let trench = Trench::dig_from(input.0);
         trench.visualize();
         println!();
         assert_eq!(trench.width, 7, "width is wrong");
