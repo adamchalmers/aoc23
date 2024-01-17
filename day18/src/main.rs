@@ -1,17 +1,16 @@
 #![feature(array_windows)]
-use rustc_hash::FxHashMap as HashMap;
 use rustc_hash::FxHashSet as HashSet;
 
 fn main() {
     let input_file = include_str!("../input.txt");
     let (input, input_hex): (Vec<_>, Vec<_>) = input_file.lines().map(Instruction::parse).unzip();
-    let q1 = size_of_trench(input);
+    let q1 = size_of_trench(&input);
     assert_eq!(34329, q1);
-    let q2 = size_of_trench(input_hex);
+    let q2 = size_of_trench(&input_hex);
     assert_eq!(q2, 42617947302920);
 }
 
-fn size_of_trench(input: Vec<Instruction>) -> usize {
+fn size_of_trench(input: &[Instruction]) -> usize {
     let trench = Trench::dig_from(input);
     let trench_size = trench.edge.len();
     let filled = trench.count_inside();
@@ -68,15 +67,16 @@ impl Point {
 }
 
 impl Trench {
-    fn dig_from(instructions: Vec<Instruction>) -> Self {
-        let (mut edge, _curr) = instructions.into_iter().fold(
-            (Vec::new(), Point::default()),
-            |(mut edge, mut curr), instr| {
-                edge.extend(curr.points_along(instr.dir, instr.metres));
-                curr = edge.last().copied().unwrap().advance(instr.dir, 1);
-                (edge, curr)
-            },
-        );
+    fn dig_from(instructions: &[Instruction]) -> Self {
+        let (mut edge, _curr) =
+            instructions.iter().fold(
+                (Vec::new(), Point::default()),
+                |(mut edge, mut curr), instr| {
+                    edge.extend(curr.points_along(instr.dir, instr.metres));
+                    curr = edge.last().copied().unwrap().advance(instr.dir, 1);
+                    (edge, curr)
+                },
+            );
         let (min_x, max_x) = edge
             .iter()
             .skip(1)
@@ -124,18 +124,13 @@ impl Trench {
     }
 
     fn count_inside(self) -> usize {
-        let points_per_row = self.edge.iter().copied().fold(
-            HashMap::default(),
-            |mut map: HashMap<_, Vec<_>>, point| {
-                map.entry(point.y).or_default().push(point.x);
-                map
-            },
-        );
+        let mut points_per_row = vec![vec![]; self.height as usize];
+        for point in &self.edge {
+            points_per_row[point.y as usize].push(point.x);
+        }
         let edge: HashSet<_> = self.edge.into_iter().collect();
         let mut inside = 0usize;
-        let mut points_per_row: Vec<(_, _)> = points_per_row.into_iter().collect();
-        points_per_row.sort();
-        for (y, mut xs) in points_per_row {
+        for (y, mut xs) in points_per_row.into_iter().enumerate() {
             // println!("Starting row {y}");
             xs.sort();
             let spans = xs.into_iter().fold(Vec::new(), |mut spans, x| {
@@ -162,17 +157,17 @@ impl Trench {
                     // Is left edge an S 
                     || (edge.contains(&Point {
                         x: span_l.0,
-                        y: y + 1,
+                        y: y as i32 + 1,
                     }) && edge.contains(&Point {
                         x: span_l.1,
-                        y: y - 1,
+                        y: y as i32 - 1,
                     }))
                     || (edge.contains(&Point {
                         x: span_l.0,
-                        y: y - 1,
+                        y: y as i32 - 1,
                     }) && edge.contains(&Point {
                         x: span_l.1,
-                        y: y + 1,
+                        y: y as i32 + 1,
                     }))
                 {
                     outside = !outside;
@@ -252,7 +247,7 @@ mod tests {
     fn test_q1() {
         let input_file = include_str!("../example.txt");
         let input: (Vec<_>, Vec<_>) = input_file.lines().map(Instruction::parse).unzip();
-        let trench = Trench::dig_from(input.0);
+        let trench = Trench::dig_from(&input.0);
         trench.visualize();
         println!();
         assert_eq!(trench.width, 7, "width is wrong");
