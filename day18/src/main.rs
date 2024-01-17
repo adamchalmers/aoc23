@@ -4,15 +4,20 @@ use rustc_hash::FxHashSet as HashSet;
 
 fn main() {
     let input_file = include_str!("../input.txt");
-    let (input, _input_hex): (Vec<_>, Vec<_>) = input_file.lines().map(Instruction::parse).unzip();
+    let (input, input_hex): (Vec<_>, Vec<_>) = input_file.lines().map(Instruction::parse).unzip();
+    let q1 = size_of_trench(input);
+    assert_eq!(34329, q1);
+    let q2 = size_of_trench(input_hex);
+    assert_eq!(q2, 42617947302920);
+}
+
+fn size_of_trench(input: Vec<Instruction>) -> usize {
     let trench = Trench::dig_from(input);
     let trench_size = trench.edge.len();
-    println!("initial trench size is {trench_size}");
-    println!("it's {} by {}", trench.width, trench.height);
     let filled = trench.count_inside();
-    let q1 = filled + trench_size;
-    println!("Total size once filled: {}", q1);
-    assert_eq!(34329, q1)
+    let size = filled + trench_size;
+    println!("Total trench size: {size}");
+    size
 }
 
 struct Trench {
