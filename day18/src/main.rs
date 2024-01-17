@@ -1,8 +1,10 @@
+#![feature(array_windows)]
 use rustc_hash::FxHashMap as HashMap;
+use rustc_hash::FxHashSet as HashSet;
 
 fn main() {
     let input_file = include_str!("../input.txt");
-    let (input, input_hex): (Vec<_>, Vec<_>) = input_file.lines().map(Instruction::parse).unzip();
+    let (input, _input_hex): (Vec<_>, Vec<_>) = input_file.lines().map(Instruction::parse).unzip();
     let trench = Trench::dig_from(input);
     let trench_size = trench.edge.len();
     println!("initial trench size is {trench_size}");
@@ -117,33 +119,67 @@ impl Trench {
     }
 
     fn count_inside(self) -> usize {
-        let mut points_per_row =
-            self.edge
-                .into_iter()
-                .fold(HashMap::default(), |mut map, point| {
-                    map.entry(point.y).or_insert(Vec::new()).push(point.x);
-                    map
-                });
+        let points_per_row = self.edge.iter().copied().fold(
+            HashMap::default(),
+            |mut map: HashMap<_, Vec<_>>, point| {
+                map.entry(point.y).or_default().push(point.x);
+                map
+            },
+        );
+        let edge: HashSet<_> = self.edge.into_iter().collect();
         let mut inside = 0usize;
-        for xs in points_per_row.values_mut() {
+        let mut points_per_row: Vec<(_, _)> = points_per_row.into_iter().collect();
+        points_per_row.sort();
+        for (y, mut xs) in points_per_row {
+            // println!("Starting row {y}");
             xs.sort();
-            let mut previous_edge = None;
-            for x in xs {
-                match previous_edge {
-                    None => {
-                        previous_edge = Some(*x);
-                    }
-                    Some(prev_x) => {
-                        if *x - prev_x > 1 {
-                            inside += usize::try_from((*x - prev_x) - 1).unwrap();
-                            previous_edge = None;
+            let spans = xs.into_iter().fold(Vec::new(), |mut spans, x| {
+                match spans.pop() {
+                    Some((start, end)) => {
+                        if x - end == 1 {
+                            spans.push((start, x));
                         } else {
-                            // This is just continuing an edge.
-                            previous_edge = Some(*x);
+                            spans.push((start, end));
+                            spans.push((x, x));
                         }
                     }
+                    None => {
+                        spans.push((x, x));
+                    }
+                }
+                spans
+            });
+            let mut this_row = 0usize;
+            let mut outside = false;
+            for [span_l, span_r] in spans.as_slice().array_windows() {
+                // println!("\t{span_l:?} - {span_r:?}");
+                if span_l.1 == span_l.0
+                    // Is left edge an S 
+                    || (edge.contains(&Point {
+                        x: span_l.0,
+                        y: y + 1,
+                    }) && edge.contains(&Point {
+                        x: span_l.1,
+                        y: y - 1,
+                    }))
+                    || (edge.contains(&Point {
+                        x: span_l.0,
+                        y: y - 1,
+                    }) && edge.contains(&Point {
+                        x: span_l.1,
+                        y: y + 1,
+                    }))
+                {
+                    outside = !outside;
+                }
+                if outside {
+                    let n = usize::try_from(span_r.0 - span_l.1 - 1).unwrap();
+                    // println!("\t Adding {n}");
+                    this_row += n;
                 }
             }
+            inside += this_row;
+            // println!("Row {y} has {this_row} m3 inside");
         }
         inside
     }
